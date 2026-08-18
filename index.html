@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Taper — quit nicotine, gradually</title>
+<style>
+  :root{
+    --brand:#0f9e74;         /* primary emerald-teal */
+    --brand-dark:#0b7a58;
+    --brand-soft:#e6f6f0;
+    --accent:#f4a12a;        /* warm accent for cravings */
+    --accent-soft:#fdf0dc;
+    --ink:#12211c;
+    --ink-2:#5c6b66;
+    --muted:#93a09b;
+    --line:#e7ece9;
+    --surface:#ffffff;
+    --app-bg:#f3f6f4;
+    --danger:#e05b4b;
+    --good:#0ca35a;
+    --ring-track:#e7ece9;
+    --shadow:0 10px 30px rgba(18,33,28,.10);
+    --shadow-sm:0 2px 8px rgba(18,33,28,.06);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0}
+  body{
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    background:
+      radial-gradient(1200px 600px at 50% -10%, #dff3ec 0%, transparent 60%),
+      #e9efec;
+    min-height:100vh;
+    display:flex;align-items:center;justify-content:center;
+    padding:28px 16px;color:var(--ink);
+  }
+
+  /* ---------- phone frame ---------- */
+  .phone{
+    width:390px;height:800px;max-height:calc(100vh - 40px);
+    background:var(--app-bg);
+    border-radius:44px;
+    box-shadow:var(--shadow), 0 0 0 10px #10201b, 0 0 0 12px #23342e;
+    position:relative;overflow:hidden;display:flex;flex-direction:column;
+  }
+  .statusbar{
+    height:44px;flex:0 0 44px;display:flex;align-items:center;justify-content:space-between;
+    padding:0 26px;font-size:13px;font-weight:600;color:var(--ink);
+    position:relative;z-index:5;
+  }
+  .statusbar .dots{display:flex;gap:4px;align-items:center}
+  .statusbar .bat{width:22px;height:11px;border:1.5px solid var(--ink);border-radius:3px;position:relative;opacity:.85}
+  .statusbar .bat::after{content:"";position:absolute;right:-3px;top:3px;width:2px;height:5px;background:var(--ink);border-radius:0 1px 1px 0}
+  .statusbar .bat i{position:absolute;inset:1.5px;width:70%;background:var(--ink);border-radius:1px;display:block}
+
+  .notch{position:absolute;top:12px;left:50%;transform:translateX(-50%);width:120px;height:26px;background:#10201b;border-radius:16px;z-index:6}
+
+  /* ---------- screens ---------- */
+  .screens{flex:1;overflow:hidden;position:relative}
+  .screen{position:absolute;inset:0;overflow-y:auto;padding:6px 18px 108px;display:none;-webkit-overflow-scrolling:touch}
+  .screen.active{display:block;animation:fade .28s ease}
+  .screen::-webkit-scrollbar{width:0}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+  .apphead{display:flex;align-items:center;justify-content:space-between;padding:6px 2px 14px}
+  .brand{display:flex;align-items:center;gap:9px}
+  .brand .logo{width:30px;height:30px;border-radius:9px;background:linear-gradient(150deg,var(--brand),#12c48c);display:grid;place-items:center;box-shadow:var(--shadow-sm)}
+  .brand .logo svg{width:17px;height:17px}
+  .brand .name{font-weight:750;font-size:20px;letter-spacing:-.02em}
+  .brand .name b{color:var(--brand)}
+  .iconbtn{width:36px;height:36px;border-radius:11px;border:1px solid var(--line);background:var(--surface);display:grid;place-items:center;cursor:pointer}
+  .iconbtn svg{width:18px;height:18px;stroke:var(--ink-2)}
+
+  .greet{font-size:14px;color:var(--ink-2);margin:0 2px 12px}
+  .greet b{color:var(--ink)}
+
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:18px;box-shadow:var(--shadow-sm);margin-bottom:14px}
+  .card-t{font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:0 0 12px}
+
+  /* hero ring */
+  .hero{background:linear-gradient(160deg,#0f9e74,#0b8f68 55%,#0b7a58);color:#fff;border:none;position:relative;overflow:hidden}
+  .hero::after{content:"";position:absolute;right:-40px;top:-50px;width:180px;height:180px;background:radial-gradient(circle,rgba(255,255,255,.16),transparent 70%)}
+  .hero .card-t{color:rgba(255,255,255,.75)}
+  .ringwrap{display:flex;align-items:center;gap:18px}
+  .ring{position:relative;width:132px;height:132px;flex:0 0 132px}
+  .ring svg{transform:rotate(-90deg)}
+  .ring .val{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .ring .val .n{font-size:30px;font-weight:800;line-height:1;letter-spacing:-.02em}
+  .ring .val .n small{font-size:15px;font-weight:600;opacity:.85}
+  .ring .val .lbl{font-size:11px;opacity:.85;margin-top:4px;letter-spacing:.02em}
+  .hero .side{flex:1}
+  .hero .side .big{font-size:15px;font-weight:600;line-height:1.4}
+  .hero .side .sub{font-size:13px;opacity:.85;margin-top:6px}
+  .chip{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.16);padding:5px 10px;border-radius:20px;font-size:12px;font-weight:600;margin-top:12px}
+
+  .timer{display:flex;align-items:flex-start;justify-content:center;gap:5px;margin:10px 0 2px}
+  .timer .tunit{display:flex;flex-direction:column;align-items:center;min-width:52px}
+  .timer .tn{font-size:38px;font-weight:800;line-height:1;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+  .timer .tl{font-size:10.5px;opacity:.8;margin-top:7px;text-transform:uppercase;letter-spacing:.09em}
+  .timer .tsep{font-size:30px;font-weight:700;opacity:.45;line-height:1;margin-top:2px}
+  .hero-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:18px}
+  .reset{background:rgba(255,255,255,.18);border:none;color:#fff;font-weight:650;font-size:12px;padding:8px 13px;border-radius:20px;cursor:pointer;font-family:inherit;flex:0 0 auto}
+  .reset:active{transform:translateY(1px)}
+  .gum-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:15px}
+  .gum-count{font-size:13.5px;color:var(--ink-2);font-weight:600}
+  .gum-count b{font-size:19px;color:var(--brand-dark)}
+  .gum-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:9px}
+  .gum-cell{aspect-ratio:1;border-radius:13px;border:2px solid var(--line);background:var(--app-bg);display:grid;place-items:center;transition:background .25s,border-color .25s,box-shadow .25s}
+  .gum-cell svg{width:15px;height:15px;stroke:#fff;opacity:0;transition:opacity .2s}
+  .gum-cell.filled{background:linear-gradient(150deg,var(--brand),#12c48c);border-color:transparent;box-shadow:0 5px 12px rgba(15,158,116,.26)}
+  .gum-cell.filled svg{opacity:1}
+  .gum-cell.pop{animation:pop .34s ease}
+  @keyframes pop{0%{transform:scale(1)}42%{transform:scale(1.16)}100%{transform:scale(1)}}
+  .actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+  .btn{border:none;border-radius:16px;padding:15px;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;font-family:inherit}
+  .btn svg{width:18px;height:18px}
+  .btn-primary{background:var(--brand);color:#fff;box-shadow:0 6px 16px rgba(15,158,116,.28)}
+  .btn-primary:active{transform:translateY(1px)}
+  .btn-accent{background:var(--accent-soft);color:#b26a04;border:1px solid #f6dcae}
+  .btn-accent svg{stroke:#d98514}
+
+  .metric-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .metric{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:15px;box-shadow:var(--shadow-sm)}
+  .metric .ico{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;margin-bottom:10px}
+  .metric .ico svg{width:18px;height:18px}
+  .metric .m-n{font-size:22px;font-weight:800;letter-spacing:-.02em}
+  .metric .m-l{font-size:12px;color:var(--ink-2);margin-top:2px}
+  .i-green{background:var(--brand-soft)} .i-green svg{stroke:var(--brand)}
+  .i-amber{background:var(--accent-soft)} .i-amber svg{stroke:#d98514}
+  .i-blue{background:#e6f0fb} .i-blue svg{stroke:#2a78d6}
+  .i-rose{background:#fbe9e6} .i-rose svg{stroke:#e05b4b}
+
+  .list-item{display:flex;align-items:center;gap:13px;padding:12px 0;border-bottom:1px solid var(--line)}
+  .list-item:last-child{border-bottom:none}
+  .li-ico{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;flex:0 0 38px}
+  .li-ico svg{width:18px;height:18px}
+  .li-main{flex:1;min-width:0}
+  .li-main .t{font-size:14px;font-weight:650}
+  .li-main .s{font-size:12.5px;color:var(--ink-2);margin-top:2px}
+  .li-right{font-size:12px;color:var(--muted);font-weight:600;text-align:right;flex:0 0 auto}
+  .badge-done{width:24px;height:24px;border-radius:50%;background:var(--brand);display:grid;place-items:center;flex:0 0 24px}
+  .badge-done svg{width:13px;height:13px;stroke:#fff}
+  .badge-now{width:24px;height:24px;border-radius:50%;border:2px solid var(--brand);flex:0 0 24px;position:relative}
+  .badge-now::after{content:"";position:absolute;inset:5px;border-radius:50%;background:var(--brand);animation:pulse 1.6s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  .badge-todo{width:24px;height:24px;border-radius:50%;border:2px solid var(--line);flex:0 0 24px}
+
+  /* plan schedule */
+  .weekrow{display:flex;align-items:center;gap:12px;padding:13px 0;border-bottom:1px solid var(--line)}
+  .weekrow:last-child{border-bottom:none}
+  .weeknum{width:44px;height:44px;border-radius:12px;background:var(--brand-soft);color:var(--brand-dark);display:grid;place-items:center;font-weight:800;font-size:13px;flex:0 0 44px;line-height:1.1;text-align:center}
+  .weekrow.done .weeknum{background:var(--brand);color:#fff}
+  .weekrow.current .weeknum{background:#fff;border:2px solid var(--brand);color:var(--brand-dark)}
+  .weekrow .w-main{flex:1}
+  .weekrow .w-t{font-weight:700;font-size:14px}
+  .weekrow .w-s{font-size:12.5px;color:var(--ink-2);margin-top:2px}
+  .weekrow .w-dose{font-weight:800;font-size:15px;text-align:right}
+  .weekrow .w-dose small{display:block;font-size:11px;color:var(--muted);font-weight:600}
+  .tag-current{display:inline-block;background:var(--accent-soft);color:#b26a04;font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:20px;margin-left:6px;vertical-align:middle}
+
+  .seg{display:flex;background:#eef2f0;border-radius:14px;padding:4px;margin-bottom:14px}
+  .seg button{flex:1;border:none;background:none;padding:9px;border-radius:11px;font-size:13px;font-weight:700;color:var(--ink-2);cursor:pointer;font-family:inherit}
+  .seg button.on{background:#fff;color:var(--ink);box-shadow:var(--shadow-sm)}
+
+  /* chart */
+  .chart-wrap{position:relative}
+  .axis-lbl{font-size:10px;fill:var(--muted);font-weight:600}
+  .glabel{font-size:11px;font-weight:700;fill:var(--brand-dark)}
+
+  /* quiz / onboarding */
+  .quiz{position:absolute;top:44px;left:0;right:0;bottom:0;background:var(--app-bg);z-index:40;display:flex;flex-direction:column;animation:fade .3s ease}
+  .quiz.hidden{display:none}
+  .quiz-top{padding:18px 22px 8px;display:flex;align-items:center;gap:14px;flex:0 0 auto}
+  .quiz-back{width:34px;height:34px;border-radius:10px;border:1px solid var(--line);background:#fff;display:grid;place-items:center;cursor:pointer;flex:0 0 auto}
+  .quiz-back svg{width:18px;height:18px;stroke:var(--ink-2)}
+  .qbar{flex:1;height:6px;border-radius:3px;background:var(--line);overflow:hidden}
+  .qbar i{display:block;height:100%;background:var(--brand);border-radius:3px;transition:width .35s;width:0}
+  .quiz-body{flex:1;overflow-y:auto;padding:16px 22px 26px}
+  .quiz-body::-webkit-scrollbar{width:0}
+  .q-step{font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--brand);margin:6px 0 10px}
+  .q-title{font-size:24px;font-weight:800;letter-spacing:-.02em;line-height:1.16;margin:0 0 6px}
+  .q-sub{font-size:14px;color:var(--ink-2);margin:0 0 20px;line-height:1.45}
+  .q-opt{width:100%;text-align:left;background:#fff;border:1.5px solid var(--line);border-radius:16px;padding:15px 16px;margin-bottom:11px;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:13px;transition:border-color .15s,background .15s}
+  .q-opt:active{transform:translateY(1px)}
+  .q-opt.sel{border-color:var(--brand);background:var(--brand-soft)}
+  .q-opt .emoji{font-size:22px;flex:0 0 auto}
+  .q-opt .ot{font-size:15px;font-weight:700;color:var(--ink);display:block}
+  .q-opt .os{font-size:12.5px;color:var(--ink-2);margin-top:2px;display:block}
+  .q-opt .otick{margin-left:auto;width:22px;height:22px;border-radius:50%;border:2px solid var(--line);flex:0 0 22px;display:grid;place-items:center}
+  .q-opt.sel .otick{background:var(--brand);border-color:var(--brand)}
+  .q-opt .otick svg{width:12px;height:12px;stroke:#fff;opacity:0}
+  .q-opt.sel .otick svg{opacity:1}
+  .q-result{text-align:center;padding-top:6px}
+  .tier-badge{display:inline-block;background:var(--brand-soft);color:var(--brand-dark);font-weight:800;font-size:13px;padding:7px 16px;border-radius:20px;letter-spacing:.02em}
+  .r-save{font-size:15px;color:var(--ink-2);margin:20px 0 2px}
+  .r-num{font-size:52px;font-weight:800;letter-spacing:-.03em;color:var(--ink);line-height:1}
+  .r-num span{font-size:22px;color:var(--ink-2);font-weight:700}
+  .r-permo{font-size:13px;color:var(--muted);margin-top:8px;line-height:1.4}
+  .r-card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:4px 18px;margin:22px 0 0;text-align:left;box-shadow:var(--shadow-sm)}
+  .r-row{display:flex;align-items:center;justify-content:space-between;padding:13px 0;border-bottom:1px solid var(--line)}
+  .r-row:last-child{border-bottom:none}
+  .r-row .rl{font-size:13.5px;color:var(--ink-2)}
+  .r-row .rv{font-size:15px;font-weight:750}
+  .q-skip{background:none;border:none;color:var(--ink-2);font-weight:600;font-size:13px;margin-top:12px;cursor:pointer;font-family:inherit;padding:6px}
+
+  /* bottom nav */
+  .tabbar{position:absolute;left:0;right:0;bottom:0;height:88px;background:rgba(255,255,255,.92);backdrop-filter:blur(12px);border-top:1px solid var(--line);display:flex;justify-content:space-around;align-items:flex-start;padding-top:10px;z-index:8}
+  .tab{background:none;border:none;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;color:var(--muted);font-family:inherit;flex:1;padding:0}
+  .tab svg{width:23px;height:23px;stroke:currentColor;fill:none;stroke-width:2}
+  .tab span{font-size:10.5px;font-weight:650}
+  .tab.on{color:var(--brand)}
+  .tab.fab{position:relative}
+  .fab-btn{width:52px;height:52px;border-radius:50%;background:linear-gradient(150deg,var(--brand),#12c48c);margin-top:-14px;display:grid;place-items:center;box-shadow:0 8px 20px rgba(15,158,116,.4)}
+  .fab-btn svg{width:26px;height:26px;stroke:#fff}
+
+  /* craving modal */
+  .sheet-scrim{position:absolute;inset:0;background:rgba(10,20,17,.45);opacity:0;pointer-events:none;transition:opacity .3s;z-index:20;backdrop-filter:blur(2px)}
+  .sheet-scrim.show{opacity:1;pointer-events:auto}
+  .sheet{position:absolute;left:0;right:0;bottom:0;background:var(--surface);border-radius:26px 26px 0 0;padding:22px 22px 30px;transform:translateY(100%);transition:transform .34s cubic-bezier(.2,.8,.2,1);z-index:21;max-height:86%;overflow-y:auto}
+  .sheet.show{transform:none}
+  .grab{width:40px;height:5px;border-radius:3px;background:var(--line);margin:0 auto 16px}
+  .sheet h3{margin:0 0 4px;font-size:20px;letter-spacing:-.01em}
+  .sheet p.sub{margin:0 0 18px;color:var(--ink-2);font-size:14px;line-height:1.5}
+  .breath{width:150px;height:150px;border-radius:50%;margin:6px auto 8px;background:radial-gradient(circle,var(--brand-soft),#fff);display:grid;place-items:center;position:relative}
+  .breath .core{width:88px;height:88px;border-radius:50%;background:linear-gradient(150deg,var(--brand),#12c48c);animation:breathe 8s ease-in-out infinite;display:grid;place-items:center;color:#fff;font-weight:700;font-size:14px;box-shadow:0 8px 24px rgba(15,158,116,.35)}
+  @keyframes breathe{0%,100%{transform:scale(.62)}45%{transform:scale(1)}55%{transform:scale(1)}}
+  .tiplist{list-style:none;padding:0;margin:14px 0 0}
+  .tiplist li{display:flex;gap:11px;align-items:flex-start;padding:11px 0;border-top:1px solid var(--line);font-size:13.5px;color:var(--ink);line-height:1.45}
+  .tiplist li .dot{width:26px;height:26px;border-radius:8px;background:var(--accent-soft);display:grid;place-items:center;flex:0 0 26px;font-size:14px}
+  .sheet .btn-primary{width:100%;margin-top:20px}
+
+  .toast{position:absolute;left:50%;bottom:104px;transform:translateX(-50%) translateY(20px);background:#12211c;color:#fff;padding:11px 18px;border-radius:14px;font-size:13px;font-weight:600;opacity:0;pointer-events:none;transition:.3s;z-index:30;box-shadow:var(--shadow)}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  .note{font-size:12px;color:var(--muted);text-align:center;margin:2px 0 0}
+  .divlabel{font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.03em;text-transform:uppercase;margin:4px 2px 10px}
+</style>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Taper">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0f9e74">
+</head>
+<body>
+<div class="phone">
+  <div class="notch"></div>
+  <div class="statusbar">
+    <span>9:41</span>
+    <span class="dots">
+      <svg width="17" height="12" viewBox="0 0 17 12" fill="var(--ink)"><rect x="0" y="7" width="3" height="5" rx="1"/><rect x="4.5" y="4.5" width="3" height="7.5" rx="1"/><rect x="9" y="2" width="3" height="10" rx="1"/><rect x="13.5" y="0" width="3" height="12" rx="1" opacity=".35"/></svg>
+      <svg width="17" height="12" viewBox="0 0 17 12" fill="none" stroke="var(--ink)" stroke-width="1.4"><path d="M1 4.5C4.5 1 12.5 1 16 4.5M3.4 7C6 4.6 11 4.6 13.6 7M6 9.4c1.5-1.3 3.5-1.3 5 0" stroke-linecap="round"/></svg>
+      <span class="bat"><i></i></span>
+    </span>
+  </div>
+
+  <div class="screens">
+
+    <!-- ============ TODAY ============ -->
+    <section class="screen active" id="s-today">
+      <div class="apphead">
+        <div class="brand">
+          <span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg></span>
+          <span class="name">Ta<b>per</b></span>
+        </div>
+        <button class="iconbtn" aria-label="retake quiz" onclick="openQuiz()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.1V21a2 2 0 0 1-4 0v-.1A1.6 1.6 0 0 0 7 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0-1.1-2.7H1a2 2 0 0 1 0-4h.1A1.6 1.6 0 0 0 2.6 7a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.6 1.6 0 0 0 7 2.6h.1A1.6 1.6 0 0 0 8.9 1V1a2 2 0 0 1 4 0v.1A1.6 1.6 0 0 0 15 2.6a1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V7a1.6 1.6 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z" transform="scale(.85) translate(2,2)"/></svg></button>
+      </div>
+      <p class="greet">Good morning, <b>Julian</b> — day <b>16</b> of your taper.</p>
+
+      <div class="card hero">
+        <p class="card-t" id="timerLbl">Time since your last vape</p>
+        <div class="timer">
+          <div class="tunit"><span class="tn" id="t-d">00</span><span class="tl">days</span></div>
+          <span class="tsep">:</span>
+          <div class="tunit"><span class="tn" id="t-h">00</span><span class="tl">hrs</span></div>
+          <span class="tsep">:</span>
+          <div class="tunit"><span class="tn" id="t-m">00</span><span class="tl">min</span></div>
+          <span class="tsep">:</span>
+          <div class="tunit"><span class="tn" id="t-s">00</span><span class="tl">sec</span></div>
+        </div>
+        <div class="hero-foot">
+          <span class="chip">🔥 personal best · 4 days</span>
+          <button class="reset" onclick="slip()">I used one · reset</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="gum-head">
+          <p class="card-t" style="margin:0">Today's gum</p>
+          <span class="gum-count"><b id="gumN">4</b> / <span id="gumMaxN">12</span> pieces chewed</span>
+        </div>
+        <div class="gum-grid" id="gumGrid"></div>
+        <button class="btn btn-primary" style="width:100%;margin-top:16px" onclick="chew()"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Chew a piece</button>
+        <p class="note" style="margin-top:11px" id="programNote">Program: 12 pieces today, tapering to 10 a day next week.</p>
+      </div>
+
+      <button class="btn btn-accent" style="width:100%;margin-bottom:14px" onclick="openCraving()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round"><path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.5-7 10-7 10z"/></svg>Craving SOS</button>
+
+      <div class="card">
+        <p class="card-t">This week · Week 3 of 8</p>
+        <div class="list-item">
+          <span class="li-ico i-green"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg></span>
+          <div class="li-main"><div class="t">Daily allowance: 12 pieces</div><div class="s">Down from 15 last week · −20%</div></div>
+          <div class="li-right">On track</div>
+        </div>
+        <div class="list-item">
+          <span class="li-ico i-blue"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+          <div class="li-main"><div class="t">Avg the last 3 days: 11 pieces</div><div class="s">Slightly under allowance — nice pace</div></div>
+          <div class="li-right">↓ good</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <p class="card-t">Next milestone</p>
+        <div class="list-item" style="padding-top:0">
+          <span class="li-ico i-amber"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M6 9a6 6 0 0 0 12 0V3H6zM6 21h12M9 21v-4M15 21v-4"/></svg></span>
+          <div class="li-main"><div class="t">Step down to 10 pieces/day</div><div class="s">4 days away · your next taper step</div></div>
+          <div class="li-right">Day 20</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ PLAN ============ -->
+    <section class="screen" id="s-plan">
+      <div class="apphead"><div class="brand"><span class="name">Your taper plan</span></div>
+        <button class="iconbtn" aria-label="edit"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>
+      </div>
+      <p class="greet">Cutting from <b>8 mg/day</b> to <b>0</b> over <b>8 weeks</b>. Nicotine-free by <b>Sep 28</b>.</p>
+
+      <div class="card">
+        <p class="card-t">Your taper curve</p>
+        <div class="chart-wrap" id="planChart"></div>
+        <p class="note">Gentle steps let your body adjust — the science says gradual beats going cold turkey for most people.</p>
+      </div>
+
+      <div class="divlabel">Week-by-week schedule</div>
+      <div class="card" style="padding:6px 18px">
+        <div class="weekrow done"><div class="weeknum">Wk 1</div><div class="w-main"><div class="w-t">Baseline hold</div><div class="w-s">Settle in, track honestly</div></div><div class="w-dose">8<small>mg/day</small></div></div>
+        <div class="weekrow done"><div class="weeknum">Wk 2</div><div class="w-main"><div class="w-t">First step down</div><div class="w-s">−12% · ease off morning use</div></div><div class="w-dose">7<small>mg/day</small></div></div>
+        <div class="weekrow current"><div class="weeknum">Wk 3</div><div class="w-main"><div class="w-t">Building momentum <span class="tag-current">You are here</span></div><div class="w-s">−25% from start</div></div><div class="w-dose">6<small>mg/day</small></div></div>
+        <div class="weekrow"><div class="weeknum">Wk 4</div><div class="w-main"><div class="w-t">Halfway point</div><div class="w-s">Cravings usually ease here</div></div><div class="w-dose">4<small>mg/day</small></div></div>
+        <div class="weekrow"><div class="weeknum">Wk 5</div><div class="w-main"><div class="w-t">Low dose</div><div class="w-s">Habit, not chemistry, now</div></div><div class="w-dose">3<small>mg/day</small></div></div>
+        <div class="weekrow"><div class="weeknum">Wk 6</div><div class="w-main"><div class="w-t">Winding down</div><div class="w-s">Fixed windows only</div></div><div class="w-dose">2<small>mg/day</small></div></div>
+        <div class="weekrow"><div class="weeknum">Wk 7</div><div class="w-main"><div class="w-t">Final stretch</div><div class="w-s">Weekends first to zero</div></div><div class="w-dose">1<small>mg/day</small></div></div>
+        <div class="weekrow"><div class="weeknum">Wk 8</div><div class="w-main"><div class="w-t">Nicotine-free</div><div class="w-s">Maintain &amp; celebrate 🎉</div></div><div class="w-dose">0<small>mg/day</small></div></div>
+      </div>
+
+      <button class="btn btn-primary" style="width:100%" onclick="toast('Plan editor is a mockup for now')">Adjust pace</button>
+    </section>
+
+    <!-- ============ PROGRESS ============ -->
+    <section class="screen" id="s-progress">
+      <div class="apphead"><div class="brand"><span class="name">Progress</span></div></div>
+
+      <div class="metric-row" style="margin-bottom:14px">
+        <div class="metric"><span class="ico i-green"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span><div class="m-n">$92</div><div class="m-l">Saved so far</div></div>
+        <div class="metric"><span class="ico i-blue"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg></span><div class="m-n">44%</div><div class="m-l">Nicotine cut</div></div>
+        <div class="metric"><span class="ico i-amber"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span><div class="m-n">16</div><div class="m-l">Days tapering</div></div>
+        <div class="metric"><span class="ico i-rose"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.5-7 10-7 10z"/></svg></span><div class="m-n">37</div><div class="m-l">Cravings beaten</div></div>
+      </div>
+
+      <div class="card">
+        <p class="card-t">Daily use vs. target · last 14 days</p>
+        <div class="chart-wrap" id="progChart"></div>
+        <div style="display:flex;gap:16px;justify-content:center;margin-top:12px;font-size:12px;color:var(--ink-2);font-weight:600">
+          <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:14px;height:8px;border-radius:3px;background:var(--brand);display:inline-block"></span>Actual</span>
+          <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:14px;height:0;border-top:2px dashed var(--muted);display:inline-block"></span>Target</span>
+        </div>
+      </div>
+
+      <div class="divlabel">Health recovery timeline</div>
+      <div class="card">
+        <div class="list-item"><span class="badge-done"><svg viewBox="0 0 24 24" fill="none" stroke-width="3" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg></span><div class="li-main"><div class="t">Heart rate normalized</div><div class="s">Within 20 minutes of cutting back</div></div></div>
+        <div class="list-item"><span class="badge-done"><svg viewBox="0 0 24 24" fill="none" stroke-width="3" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg></span><div class="li-main"><div class="t">Carbon monoxide cleared</div><div class="s">Blood oxygen back to normal · day 1</div></div></div>
+        <div class="list-item"><span class="badge-now"></span><div class="li-main"><div class="t">Taste &amp; smell returning</div><div class="s">Happening now · days 2–14</div></div><div class="li-right">In progress</div></div>
+        <div class="list-item"><span class="badge-todo"></span><div class="li-main"><div class="t">Lung function improves</div><div class="s">Breathing easier · around week 4</div></div><div class="li-right">Day 28</div></div>
+        <div class="list-item"><span class="badge-todo"></span><div class="li-main"><div class="t">Circulation restored</div><div class="s">After you reach zero · week 12</div></div><div class="li-right">Wk 12</div></div>
+      </div>
+    </section>
+
+    <!-- ============ LOG ============ -->
+    <section class="screen" id="s-log">
+      <div class="apphead"><div class="brand"><span class="name">Log</span></div></div>
+
+      <div class="seg">
+        <button class="on" onclick="segLog(this,'all')">All</button>
+        <button onclick="segLog(this,'use')">Nicotine</button>
+        <button onclick="segLog(this,'crave')">Cravings</button>
+      </div>
+
+      <div class="card" style="padding:16px 18px">
+        <p class="card-t">Today · 4 pieces of gum · vape-free</p>
+        <div id="logToday">
+          <div class="list-item" data-kind="use"><span class="li-ico i-green"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M4 12h16M12 4v16" opacity="0"/><path d="M7 20V10a5 5 0 0 1 10 0v10M5 20h14"/></svg></span><div class="li-main"><div class="t">Nicotine gum · 1 piece</div><div class="s">After lunch</div></div><div class="li-right">1:12 PM</div></div>
+          <div class="list-item" data-kind="crave"><span class="li-ico i-amber"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.5-7 10-7 10z"/></svg></span><div class="li-main"><div class="t">Craving — rode it out</div><div class="s">Used breathing exercise · 3 min</div></div><div class="li-right">11:40 AM</div></div>
+          <div class="list-item" data-kind="use"><span class="li-ico i-green"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M7 20V10a5 5 0 0 1 10 0v10M5 20h14"/></svg></span><div class="li-main"><div class="t">Nicotine gum · 1 piece</div><div class="s">Morning coffee</div></div><div class="li-right">8:05 AM</div></div>
+        </div>
+      </div>
+
+      <div class="divlabel">Yesterday · 5 pieces · under allowance ✓</div>
+      <div class="card" style="padding:16px 18px">
+        <div class="list-item" data-kind="crave"><span class="li-ico i-amber"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.5-7 10-7 10z"/></svg></span><div class="li-main"><div class="t">Craving — rode it out</div><div class="s">Went for a walk instead</div></div><div class="li-right">9:20 PM</div></div>
+        <div class="list-item" data-kind="use"><span class="li-ico i-green"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M7 20V10a5 5 0 0 1 10 0v10M5 20h14"/></svg></span><div class="li-main"><div class="t">Nicotine gum · 5 pieces</div><div class="s">Spread across the day</div></div><div class="li-right">All day</div></div>
+      </div>
+    </section>
+
+  </div><!-- /screens -->
+
+  <!-- craving sheet -->
+  <div class="sheet-scrim" id="scrim" onclick="closeCraving()"></div>
+  <div class="sheet" id="sheet">
+    <div class="grab"></div>
+    <h3>Ride out the craving</h3>
+    <p class="sub">Most cravings peak and pass within 3–5 minutes. Breathe with the circle — in as it grows, out as it shrinks.</p>
+    <div class="breath"><div class="core">Breathe</div></div>
+    <ul class="tiplist">
+      <li><span class="dot">💧</span> Drink a glass of cold water, slowly.</li>
+      <li><span class="dot">🚶</span> Change rooms or step outside for 2 minutes.</li>
+      <li><span class="dot">✋</span> Keep your hands busy — this too will pass.</li>
+    </ul>
+    <button class="btn btn-primary" onclick="beatCraving()">I rode it out 💪</button>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <!-- bottom nav -->
+  <nav class="tabbar">
+    <button class="tab on" data-s="s-today" onclick="go(this)"><svg viewBox="0 0 24 24"><path d="M3 10l9-7 9 7v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg><span>Today</span></button>
+    <button class="tab" data-s="s-plan" onclick="go(this)"><svg viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-8"/><path d="M21 7v6h-6"/></svg><span>Plan</span></button>
+    <button class="tab fab" onclick="openCraving()"><span class="fab-btn"><svg viewBox="0 0 24 24" stroke-width="2.4"><path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.5-7 10-7 10z"/></svg></span></button>
+    <button class="tab" data-s="s-progress" onclick="go(this)"><svg viewBox="0 0 24 24"><rect x="3" y="12" width="4" height="8" rx="1"/><rect x="10" y="7" width="4" height="13" rx="1"/><rect x="17" y="3" width="4" height="17" rx="1"/></svg><span>Progress</span></button>
+    <button class="tab" data-s="s-log" onclick="go(this)"><svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg><span>Log</span></button>
+  </nav>
+
+  <!-- onboarding quiz overlay -->
+  <div class="quiz" id="quiz">
+    <div class="quiz-top">
+      <button class="quiz-back" onclick="qBack()" aria-label="back"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+      <div class="qbar"><i id="qbarFill"></i></div>
+    </div>
+    <div class="quiz-body" id="quizBody"></div>
+  </div>
+</div>
+
+<script>
+  // ---------- tab nav ----------
+  function go(btn){
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+    btn.classList.add('on');
+    document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+    document.getElementById(btn.dataset.s).classList.add('active');
+    document.querySelector('.screen.active').scrollTop=0;
+  }
+
+  // ---------- vape-free timer ----------
+  let lastUse = Date.now() - ((2*86400 + 14*3600 + 32*60 + 8)*1000);
+  const pad = n => String(n).padStart(2,'0');
+  function tick(){
+    let s=Math.max(0,Math.floor((Date.now()-lastUse)/1000));
+    const d=Math.floor(s/86400); s-=d*86400;
+    const h=Math.floor(s/3600); s-=h*3600;
+    const m=Math.floor(s/60); s-=m*60;
+    document.getElementById('t-d').textContent=pad(d);
+    document.getElementById('t-h').textContent=pad(h);
+    document.getElementById('t-m').textContent=pad(m);
+    document.getElementById('t-s').textContent=pad(s);
+  }
+  function startTimer(){tick();setInterval(tick,1000);}
+  function slip(){lastUse=Date.now();tick();toast('Timer reset — no shame. Back on the gum, keep going.');}
+
+  // ---------- gum tracker ----------
+  let gum=4; let gumMax=12;
+  function renderGum(){
+    const g=document.getElementById('gumGrid'); g.innerHTML='';
+    for(let i=0;i<gumMax;i++){
+      const c=document.createElement('div');
+      c.className='gum-cell'+(i<gum?' filled':'');
+      c.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>';
+      g.appendChild(c);
+    }
+    document.getElementById('gumN').textContent=gum;
+  }
+  function chew(){
+    if(gum>=gumMax){toast("That's your full allowance today — nice work holding the line.");return;}
+    gum++; renderGum();
+    document.querySelectorAll('.gum-cell')[gum-1].classList.add('pop');
+    toast(gum===gumMax ? 'Last piece for today 💪' : 'Piece '+gum+' logged · '+(gumMax-gum)+' left today');
+  }
+
+  // ---------- craving sheet ----------
+  function openCraving(){document.getElementById('scrim').classList.add('show');document.getElementById('sheet').classList.add('show');}
+  function closeCraving(){document.getElementById('scrim').classList.remove('show');document.getElementById('sheet').classList.remove('show');}
+  function beatCraving(){closeCraving();toast('Nice. That craving is logged as beaten 💪');}
+
+  // ---------- toast ----------
+  let toastT;
+  function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('show'),2200);}
+
+  // ---------- log filter ----------
+  function segLog(btn,kind){
+    btn.parentNode.querySelectorAll('button').forEach(b=>b.classList.remove('on'));
+    btn.classList.add('on');
+    document.querySelectorAll('#s-log .list-item').forEach(li=>{
+      li.style.display = (kind==='all'|| (kind==='use'&&li.dataset.kind==='use') || (kind==='crave'&&li.dataset.kind==='crave')) ? '' : 'none';
+    });
+  }
+
+  // ---------- taper curve chart (plan) ----------
+  function drawPlan(){
+    const W=318,H=170,pl=26,pr=10,pt=14,pb=26;
+    const iw=W-pl-pr, ih=H-pt-pb;
+    const data=[8,7,6,4,3,2,1,0];
+    const maxV=8;
+    const x=i=>pl+ (i/(data.length-1))*iw;
+    const y=v=>pt+ (1-v/maxV)*ih;
+    let path='', area='';
+    data.forEach((v,i)=>{path+=(i?'L':'M')+x(i).toFixed(1)+' '+y(v).toFixed(1)+' ';});
+    area = path+`L${x(data.length-1)} ${pt+ih} L${x(0)} ${pt+ih} Z`;
+    let grid='';
+    [0,2,4,6,8].forEach(v=>{grid+=`<line x1="${pl}" y1="${y(v)}" x2="${W-pr}" y2="${y(v)}" stroke="var(--line)" stroke-width="1"/><text x="${pl-6}" y="${y(v)+3}" text-anchor="end" class="axis-lbl">${v}</text>`;});
+    let dots='';
+    data.forEach((v,i)=>{
+      const cur = i===2;
+      dots+=`<circle cx="${x(i)}" cy="${y(v)}" r="${cur?5:3.4}" fill="${cur?'#fff':'var(--brand)'}" stroke="var(--brand)" stroke-width="${cur?3:0}"/>`;
+    });
+    // current marker label
+    const svg=`<svg width="100%" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
+      ${grid}
+      <path d="${area}" fill="url(#gp)" opacity=".16"/>
+      <path d="${path}" fill="none" stroke="var(--brand)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+      ${dots}
+      <text x="${x(2)}" y="${y(6)-12}" text-anchor="middle" class="glabel">now · 6mg</text>
+      <defs><linearGradient id="gp" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--brand)"/><stop offset="1" stop-color="var(--brand)" stop-opacity="0"/></linearGradient></defs>
+      <text x="${pl}" y="${H-6}" class="axis-lbl">Wk1</text>
+      <text x="${W-pr}" y="${H-6}" text-anchor="end" class="axis-lbl">Wk8</text>
+    </svg>`;
+    document.getElementById('planChart').innerHTML=svg;
+  }
+
+  // ---------- daily use vs target (progress) ----------
+  function drawProg(){
+    const W=318,H=168,pl=22,pr=8,pt=12,pb=24;
+    const iw=W-pl-pr, ih=H-pt-pb;
+    const actual=[8,8,7,7,8,7,7,6,7,6,5,6,5,4];
+    const target=[8,8,7,7,7,7,7,6,6,6,6,6,6,6];
+    const maxV=9;
+    const n=actual.length;
+    const bw=iw/n*0.56;
+    const cx=i=>pl+ (i+0.5)*(iw/n);
+    const y=v=>pt+(1-v/maxV)*ih;
+    let grid='';
+    [0,3,6,9].forEach(v=>{grid+=`<line x1="${pl}" y1="${y(v)}" x2="${W-pr}" y2="${y(v)}" stroke="var(--line)" stroke-width="1"/><text x="${pl-5}" y="${y(v)+3}" text-anchor="end" class="axis-lbl">${v}</text>`;});
+    let bars='';
+    actual.forEach((v,i)=>{
+      const h=(v/maxV)*ih, yy=pt+ih-h;
+      const isToday=i===n-1;
+      bars+=`<rect x="${cx(i)-bw/2}" y="${yy}" width="${bw}" height="${h}" rx="3" fill="${isToday?'var(--brand)':'#7fd0b6'}"/>`;
+    });
+    let tline='';
+    target.forEach((v,i)=>{tline+=(i?'L':'M')+cx(i).toFixed(1)+' '+y(v).toFixed(1)+' ';});
+    const svg=`<svg width="100%" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
+      ${grid}${bars}
+      <path d="${tline}" fill="none" stroke="var(--muted)" stroke-width="2" stroke-dasharray="5 4" stroke-linecap="round"/>
+      <text x="${pl}" y="${H-6}" class="axis-lbl">14d ago</text>
+      <text x="${W-pr}" y="${H-6}" text-anchor="end" class="axis-lbl">Today</text>
+    </svg>`;
+    document.getElementById('progChart').innerHTML=svg;
+  }
+
+  // ---------- onboarding quiz ----------
+  const QUIZ=[
+    {key:'product', q:'What are you quitting?', sub:"We'll tailor the plan and your savings to it.", opts:[
+      {label:'Vaping', emoji:'💨', v:'vape'},
+      {label:'Cigarettes', emoji:'🚬', v:'cig'},
+      {label:'Nicotine pouches', emoji:'⚪', v:'pouch'},
+    ]},
+    {key:'amount', q:'How much on a typical day?', sub:'Give us your honest average — no judgment.', opts:[
+      {label:'Light', sub:'Under 10 cigarettes / a few puffs', emoji:'🌱', pts:1},
+      {label:'Moderate', sub:'10–20 a day / half a disposable', emoji:'🔆', pts:2},
+      {label:'Heavy', sub:'About a pack / a disposable a day', emoji:'🔥', pts:3},
+      {label:'Very heavy', sub:'25+ a day / more than one', emoji:'🌋', pts:4},
+    ]},
+    {key:'first', q:'How soon after waking do you first use?', sub:'This is one of the strongest signals of dependence.', opts:[
+      {label:'Within 5 minutes', emoji:'⏰', pts:4},
+      {label:'5 to 30 minutes', emoji:'☕', pts:3},
+      {label:'30 to 60 minutes', emoji:'🚿', pts:2},
+      {label:'More than an hour', emoji:'🌤️', pts:1},
+    ]},
+    {key:'spend', q:'Roughly what do you spend a week?', sub:'So we can show what tapering puts back in your pocket.', opts:[
+      {label:'Under $20', emoji:'💵', day:2},
+      {label:'$20 – $40', emoji:'💵', day:4.3},
+      {label:'$40 – $70', emoji:'💵', day:7.8},
+      {label:'$70 or more', emoji:'💵', day:12},
+    ]},
+  ];
+  const GUM_COST=0.30; // assumed $/piece — easy to change
+  let qi=0; const qans={};
+
+  function openQuiz(){qi=0;Object.keys(qans).forEach(k=>delete qans[k]);document.getElementById('quiz').classList.remove('hidden');drawQuiz();}
+  function closeQuiz(){document.getElementById('quiz').classList.add('hidden');}
+  function qBack(){ if(qi===0){closeQuiz();return;} qi--; drawQuiz(); }
+  function pick(i){ const s=QUIZ[qi]; qans[s.key]=s.opts[i]; qi++; setTimeout(drawQuiz,170); }
+
+  function prodWord(p){return p==='cig'?'cigarettes':p==='pouch'?'pouches':'vape';}
+  function prodSingular(p){return p==='cig'?'cigarette':p==='pouch'?'pouch':'vape';}
+
+  function drawQuiz(){
+    const total=QUIZ.length, bar=document.getElementById('qbarFill'), body=document.getElementById('quizBody');
+    if(qi<total){
+      bar.style.width=(qi/total*100)+'%';
+      const s=QUIZ[qi];
+      let opts='';
+      s.opts.forEach((o,i)=>{
+        const sel = qans[s.key]===o ? ' sel':'';
+        opts+=`<button class="q-opt${sel}" onclick="pick(${i})">`+
+          (o.emoji?`<span class="emoji">${o.emoji}</span>`:'')+
+          `<span><span class="ot">${o.label}</span>`+(o.sub?`<span class="os">${o.sub}</span>`:'')+`</span>`+
+          `<span class="otick"><svg viewBox="0 0 24 24" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span></button>`;
+      });
+      body.innerHTML=`<div class="q-step">Question ${qi+1} of ${total}</div><h2 class="q-title">${s.q}</h2><p class="q-sub">${s.sub}</p>${opts}`;
+      body.scrollTop=0;
+    } else {
+      bar.style.width='100%';
+      body.innerHTML=resultHTML();
+      body.scrollTop=0;
+    }
+  }
+
+  function resultHTML(){
+    const amt=qans.amount, first=qans.first, spend=qans.spend, prod=qans.product.v;
+    const load=amt.pts+first.pts; // 2..8
+    let tierName, tierDesc, pieces;
+    if(load<=3){tierName='Tier 1 · Light';tierDesc='a gentle step-down';pieces=8;}
+    else if(load<=5){tierName='Tier 2 · Moderate';tierDesc='a steady 12-week taper';pieces=12;}
+    else {tierName='Tier 3 · Heavy';tierDesc='a supported, gradual taper';pieces=16;}
+    const strength=(amt.pts>=4||first.pts>=4||load>=6)?'4 mg':'2 mg';
+    const gumDay=pieces*GUM_COST;
+    let save=spend.day-gumDay, saveTxt, note;
+    if(save>0.5){ saveTxt='$'+(save%1?save.toFixed(2):save.toFixed(0)); note='per day vs. your '+prodWord(prod)+' habit — about <b>$'+Math.round(save*30)+'/month</b>'; }
+    else { saveTxt='$'+spend.day.toFixed(0); note='per day back in your pocket once you finish the program'; }
+    applyPlan(prod,pieces,strength);
+    return `<div class="q-result">
+      <div style="font-size:38px;line-height:1">🎉</div>
+      <span class="tier-badge">${tierName}</span>
+      <p class="r-save">Tapering could save you about</p>
+      <div class="r-num">${saveTxt}<span> /day</span></div>
+      <p class="r-permo">${note}</p>
+      <div class="r-card">
+        <div class="r-row"><span class="rl">Recommended gum</span><span class="rv">${strength} nicotine</span></div>
+        <div class="r-row"><span class="rl">Start at</span><span class="rv">${pieces} pieces / day</span></div>
+        <div class="r-row"><span class="rl">Your plan</span><span class="rv" style="text-transform:capitalize">${tierDesc}</span></div>
+        <div class="r-row"><span class="rl">Taper to zero</span><span class="rv">~12 weeks</span></div>
+      </div>
+      <button class="btn btn-primary" style="width:100%;margin-top:22px" onclick="finishQuiz()">Start my plan →</button>
+      <button class="q-skip" onclick="closeQuiz()">Skip for now</button>
+    </div>`;
+  }
+
+  function applyPlan(prod,pieces,strength){
+    gumMax=pieces; gum=0; renderGum();
+    const mx=document.getElementById('gumMaxN'); if(mx)mx.textContent=pieces;
+    const tl=document.getElementById('timerLbl'); if(tl)tl.textContent='Time since your last '+prodSingular(prod);
+    const pn=document.getElementById('programNote'); if(pn)pn.textContent='Program: '+strength+' gum, '+pieces+' pieces today, tapering to zero over ~12 weeks.';
+  }
+  function finishQuiz(){ closeQuiz(); lastUse=Date.now()-((2*86400+14*3600)*1000); tick(); toast('Your plan is ready — welcome to Taper 🎉'); }
+
+  startTimer(); renderGum(); drawPlan(); drawProg(); drawQuiz();
+</script>
+<script>
+(function(){
+  var MY_VERSION = "1787014365";
+  async function check(){
+    try{
+      var r = await fetch("version.json?_="+Date.now(), {cache:"no-store"});
+      if(!r.ok) return;
+      var j = await r.json();
+      if(j && j.v && j.v !== MY_VERSION){ location.reload(); }
+    }catch(e){}
+  }
+  setInterval(check, 15000);
+  document.addEventListener("visibilitychange", function(){ if(!document.hidden) check(); });
+})();
+</script>
+</body>
+</html>
