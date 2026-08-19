@@ -482,12 +482,7 @@
       <p class="login-sub">Quit nicotine, gradually.</p>
     </div>
 
-    <button class="social-btn social-apple" onclick="socialAuth('Apple')">
-      <svg viewBox="0 0 24 24" fill="#fff"><path d="M16.365 12.03c-.02-2.31 1.885-3.42 1.97-3.475-1.075-1.57-2.75-1.785-3.345-1.81-1.425-.144-2.78.84-3.5.84-.72 0-1.835-.82-3.02-.797-1.555.023-2.99.904-3.79 2.297-1.615 2.8-.413 6.945 1.155 9.22.765 1.113 1.68 2.363 2.877 2.318 1.15-.046 1.585-.744 2.976-.744 1.39 0 1.78.744 2.998.72 1.238-.02 2.02-1.135 2.78-2.253.874-1.29 1.234-2.54 1.255-2.605-.027-.012-2.408-.924-2.43-3.664zM14.09 4.86c.638-.775 1.07-1.852.952-2.925-.92.037-2.035.613-2.695 1.387-.592.686-1.11 1.783-.97 2.835 1.026.08 2.074-.522 2.713-1.297z"/></svg>
-      Continue with Apple
-    </button>
-
-    <button class="social-btn social-google" onclick="socialAuth('Google')">
+    <button class="social-btn social-google" onclick="googleSignIn()">
       <svg viewBox="0 0 24 24"><path fill="#4285F4" d="M23.06 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h6.2a5.3 5.3 0 0 1-2.3 3.48v2.9h3.72c2.18-2 3.44-4.96 3.44-8.39z"/><path fill="#34A853" d="M12 24c3.1 0 5.7-1.03 7.6-2.78l-3.72-2.9c-1.03.69-2.35 1.1-3.88 1.1-2.98 0-5.5-2.01-6.4-4.72H1.75v2.99A11.5 11.5 0 0 0 12 24z"/><path fill="#FBBC05" d="M5.6 14.7a6.9 6.9 0 0 1 0-4.4V7.31H1.75a11.5 11.5 0 0 0 0 10.38l3.85-2.99z"/><path fill="#EA4335" d="M12 4.77c1.68 0 3.2.58 4.4 1.72l3.3-3.3C17.7 1.2 15.1 0 12 0 7.3 0 3.25 2.69 1.75 6.62l3.85 2.99C6.5 6.9 9.02 4.77 12 4.77z"/></svg>
       Continue with Google
     </button>
@@ -514,9 +509,30 @@
 
     <button class="login-guest" onclick="guestAuth()">Continue as guest →</button>
 
-    <p class="login-legal">Prototype — sign-in is for demonstration only.</p>
+    <p class="login-legal">Secure sign-in · your progress syncs across your devices.</p>
   </div>
 </div>
+
+<!-- Firebase (compat SDK) -->
+<script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore-compat.js"></script>
+<script>
+  var FB = { ready:false, auth:null, db:null };
+  try{
+    firebase.initializeApp({
+      apiKey: "AIzaSyCwQY7Gjs71KW-isuG6oXE9CYOsg-6zBtY",
+      authDomain: "taper-1a1e9.firebaseapp.com",
+      projectId: "taper-1a1e9",
+      storageBucket: "taper-1a1e9.firebasestorage.app",
+      messagingSenderId: "429659052133",
+      appId: "1:429659052133:web:9b21df57785f0420d40e8c"
+    });
+    FB.auth = firebase.auth();
+    FB.db = firebase.firestore();
+    FB.ready = true;
+  }catch(e){ /* SDK failed / offline — app still runs in guest mode */ }
+</script>
 
 <script>
   // ---------- tab nav ----------
@@ -740,9 +756,9 @@
     const pn=document.getElementById('programNote'); if(pn)pn.textContent='Program: '+strength+' gum, '+pieces+' pieces today, tapering to zero over ~12 weeks.';
     saveState();
   }
-  function finishQuiz(){ closeQuiz(); lastUse=Date.now()-((2*86400+14*3600)*1000); tick(); toast('Your plan is ready — welcome to Taper 🎉'); }
+  function finishQuiz(){ closeQuiz(); lastUse=Date.now()-((2*86400+14*3600)*1000); tick(); saveState(); toast('Your plan is ready — welcome to Taper 🎉'); }
 
-  // ---------- login / auth (prototype) ----------
+  // ---------- auth + sync (Firebase) ----------
   let authMode='login'; // 'login' | 'signup'
   function toggleAuthMode(){
     authMode = authMode==='login' ? 'signup' : 'login';
@@ -753,32 +769,54 @@
       ? 'Already have an account? <button onclick="toggleAuthMode()">Log in</button>'
       : 'New to Taper? <button onclick="toggleAuthMode()">Create an account</button>';
     document.getElementById('loginPass').setAttribute('autocomplete', isSignup ? 'new-password' : 'current-password');
-    document.getElementById('loginHint').textContent='';
+    setHint('');
   }
   function validEmail(v){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v); }
+  function setHint(msg, kind){ const h=document.getElementById('loginHint'); if(!h) return; h.textContent=msg||''; h.style.color = kind==='info' ? 'var(--ink-2)' : 'var(--danger)'; }
+  function authError(err){
+    const c=(err&&err.code)||'';
+    if(c.indexOf('email-already-in-use')>=0) return 'That email already has an account — try logging in.';
+    if(c.indexOf('invalid-credential')>=0||c.indexOf('wrong-password')>=0||c.indexOf('user-not-found')>=0||c.indexOf('invalid-login')>=0) return "Email or password didn't match. Try again.";
+    if(c.indexOf('weak-password')>=0) return 'Password should be at least 6 characters.';
+    if(c.indexOf('too-many-requests')>=0) return 'Too many attempts — please wait a moment.';
+    if(c.indexOf('network')>=0) return 'Network error — check your connection.';
+    return 'Something went wrong. Please try again.';
+  }
   function submitAuth(){
     const email=document.getElementById('loginEmail').value.trim();
     const pass=document.getElementById('loginPass').value;
-    const hint=document.getElementById('loginHint');
-    if(!validEmail(email)){ hint.textContent='Please enter a valid email address.'; return; }
-    if(pass.length<6){ hint.textContent='Password should be at least 6 characters.'; return; }
-    hint.textContent='';
+    if(!validEmail(email)){ setHint('Please enter a valid email address.'); return; }
+    if(pass.length<6){ setHint('Password should be at least 6 characters.'); return; }
+    if(!FB.ready){ setHint("Can't reach the server right now. Check your connection and try again."); return; }
+    const btn=document.getElementById('loginSubmit'); btn.disabled=true; setHint('Just a moment…','info');
+    const done=function(){ btn.disabled=false; };
     if(authMode==='signup'){
       const name=document.getElementById('loginName').value.trim();
-      if(name) setUserName(name);
-      enterApp();
-      setTimeout(openQuiz, 260); // new users personalize via the onboarding quiz
+      if(name){ window.__name=name; setUserName(name); }
+      FB.auth.createUserWithEmailAndPassword(email,pass).then(function(cred){
+        return name ? cred.user.updateProfile({displayName:name}) : null;
+      }).then(function(){ done(); setHint(''); }).catch(function(err){ done(); setHint(authError(err)); });
     } else {
-      enterApp();
+      FB.auth.signInWithEmailAndPassword(email,pass).then(function(){ done(); setHint(''); }).catch(function(err){ done(); setHint(authError(err)); });
     }
   }
-  function socialAuth(provider){ enterApp(); toast('Signed in with '+provider); }
-  function guestAuth(){ enterApp(); toast('Exploring as guest'); }
-  function enterApp(){
-    window.__authed=true; saveState();
-    const l=document.getElementById('login');
-    l.style.opacity='0';
-    setTimeout(()=>{ l.classList.add('hidden'); l.style.opacity=''; }, 220);
+  function googleSignIn(){
+    if(!FB.ready){ setHint("Can't reach the server right now."); return; }
+    const provider=new firebase.auth.GoogleAuthProvider();
+    FB.auth.signInWithPopup(provider).catch(function(err){
+      const c=(err&&err.code)||'';
+      if(c.indexOf('popup')>=0 || c.indexOf('operation-not-supported')>=0 || c.indexOf('cancelled')>=0){
+        try{ FB.auth.signInWithRedirect(provider); }catch(e){ setHint('Google sign-in failed. Try email instead.'); }
+      } else if(c.indexOf('account-exists')>=0){ setHint('You already signed up with email — use that instead.'); }
+      else { setHint('Google sign-in failed. Try email instead.'); }
+    });
+  }
+  function guestAuth(){
+    const had=hasLocalData();
+    window.__mode='guest';
+    if(had) restoreLocal();
+    enterAppWithData(had);
+    toast('Exploring as guest');
   }
   function setUserName(name){
     window.__name=name;
@@ -786,43 +824,78 @@
     if(g) g.innerHTML='Good morning, <b>'+name+'</b> — day <b>16</b> of your taper.';
   }
 
-  // ---------- persistence (on-device, no backend) ----------
+  // ---------- state (cloud for accounts, on-device for guests) ----------
   const STORE_KEY='taper_state_v1';
-  function loadState(){ try{ return JSON.parse(localStorage.getItem(STORE_KEY)||'null'); }catch(e){ return null; } }
-  function saveState(){
-    try{
-      localStorage.setItem(STORE_KEY, JSON.stringify({
-        authed: !!window.__authed,
-        name: window.__name||null,
-        gum, gumMax, lastUse,
-        timerLbl: (document.getElementById('timerLbl')||{}).textContent||null,
-        programNote: (document.getElementById('programNote')||{}).textContent||null,
-        greet: (document.querySelector('#s-today .greet')||{}).innerHTML||null
-      }));
-    }catch(e){}
+  function currentState(){
+    return {
+      name: window.__name||null,
+      gum: gum, gumMax: gumMax, lastUse: lastUse,
+      timerLbl: (document.getElementById('timerLbl')||{}).textContent||null,
+      programNote: (document.getElementById('programNote')||{}).textContent||null,
+      greet: (document.querySelector('#s-today .greet')||{}).innerHTML||null
+    };
   }
-  function restoreState(){
-    const s=loadState(); if(!s) return;
+  function applyState(s){
+    if(!s) return;
     if(typeof s.gumMax==='number'){ gumMax=s.gumMax; const mx=document.getElementById('gumMaxN'); if(mx)mx.textContent=gumMax; }
     if(typeof s.gum==='number') gum=s.gum;
     if(typeof s.lastUse==='number') lastUse=s.lastUse;
     if(s.timerLbl){ const tl=document.getElementById('timerLbl'); if(tl)tl.textContent=s.timerLbl; }
     if(s.programNote){ const pn=document.getElementById('programNote'); if(pn)pn.textContent=s.programNote; }
     if(s.greet){ const g=document.querySelector('#s-today .greet'); if(g)g.innerHTML=s.greet; }
-    window.__authed=!!s.authed; window.__name=s.name||null;
-    if(s.authed){
-      const l=document.getElementById('login'); if(l) l.classList.add('hidden');
-      const q=document.getElementById('quiz'); if(q) q.classList.add('hidden'); // returning users skip onboarding
+    if(s.name) window.__name=s.name;
+    renderGum(); tick();
+  }
+  function loadLocal(){ try{ return JSON.parse(localStorage.getItem(STORE_KEY)||'null'); }catch(e){ return null; } }
+  function hasLocalData(){ return !!loadLocal(); }
+  function restoreLocal(){ applyState(loadLocal()); }
+  function saveState(){
+    const st=currentState();
+    try{ localStorage.setItem(STORE_KEY, JSON.stringify(Object.assign({mode:window.__mode||'guest'}, st))); }catch(e){}
+    if(window.__mode==='user' && window.__uid && FB.db){
+      FB.db.collection('users').doc(window.__uid).set(st, {merge:true}).catch(function(){});
     }
   }
-  function signOut(){ try{ localStorage.removeItem(STORE_KEY); }catch(e){} location.reload(); }
+  function loadFromCloud(uid){
+    if(!FB.db){ if(hasLocalData()) restoreLocal(); enterAppWithData(hasLocalData()); return; }
+    FB.db.collection('users').doc(uid).get().then(function(snap){
+      if(snap.exists){
+        applyState(snap.data());
+        try{ localStorage.setItem(STORE_KEY, JSON.stringify(Object.assign({mode:'user'}, snap.data()))); }catch(e){}
+        enterAppWithData(true);
+      } else {
+        if(window.__name) setUserName(window.__name);
+        FB.db.collection('users').doc(uid).set(currentState()).catch(function(){});
+        enterAppWithData(false);
+      }
+    }).catch(function(){ if(hasLocalData()) restoreLocal(); enterAppWithData(hasLocalData()); });
+  }
 
-  restoreState();
+  function hideLogin(){ const l=document.getElementById('login'); if(l){ l.style.opacity='0'; setTimeout(function(){ l.classList.add('hidden'); l.style.opacity=''; },220); } }
+  function hideQuiz(){ const q=document.getElementById('quiz'); if(q) q.classList.add('hidden'); }
+  function enterAppWithData(hasData){ hideLogin(); if(hasData){ hideQuiz(); } else { setTimeout(openQuiz, 240); } }
+  function signOut(){
+    try{ localStorage.removeItem(STORE_KEY); }catch(e){}
+    if(FB.ready && FB.auth.currentUser){ FB.auth.signOut().then(function(){ location.reload(); }).catch(function(){ location.reload(); }); }
+    else { location.reload(); }
+  }
+
+  // ---------- init ----------
+  const _q=document.getElementById('quiz'); if(_q) _q.classList.add('hidden'); // hide onboarding until auth decides
   startTimer(); renderGum(); drawPlan(); drawProg(); drawQuiz();
+  if(FB.ready){
+    FB.auth.getRedirectResult().catch(function(){});
+    FB.auth.onAuthStateChanged(function(user){
+      if(user){ window.__mode='user'; window.__uid=user.uid; if(user.displayName) window.__name=user.displayName; loadFromCloud(user.uid); }
+      else { const s=loadLocal(); if(s && s.mode==='guest'){ window.__mode='guest'; applyState(s); hideLogin(); hideQuiz(); } }
+    });
+  } else {
+    const s=loadLocal(); if(s && s.mode==='guest'){ window.__mode='guest'; applyState(s); hideLogin(); hideQuiz(); }
+  }
 </script>
 <script>
 (function(){
-  var MY_VERSION = "1787101961";
+  var MY_VERSION = "1787106842";
   async function check(){
     try{
       var r = await fetch("version.json?_="+Date.now(), {cache:"no-store"});
