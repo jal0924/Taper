@@ -265,6 +265,7 @@
   .login-toggle button{background:none;border:none;color:var(--brand);font-weight:750;font-size:13.5px;cursor:pointer;font-family:inherit;padding:0}
   .login-guest{background:none;border:none;color:var(--ink-2);font-weight:650;font-size:13.5px;cursor:pointer;font-family:inherit;margin:16px auto 0;display:block;padding:8px}
   .login-legal{font-size:11px;color:var(--muted);text-align:center;margin:auto 0 0;padding-top:16px;line-height:1.5}
+  .signout-btn{background:none;border:none;color:var(--muted);font-weight:650;font-size:13px;cursor:pointer;font-family:inherit;display:block;margin:6px auto 4px;padding:8px}
 </style>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -348,6 +349,8 @@
           <div class="li-right">Day 20</div>
         </div>
       </div>
+
+      <button class="signout-btn" onclick="signOut()">Sign out</button>
     </section>
 
     <!-- ============ PLAN ============ -->
@@ -539,7 +542,7 @@
     document.getElementById('t-s').textContent=pad(s);
   }
   function startTimer(){tick();setInterval(tick,1000);}
-  function slip(){lastUse=Date.now();tick();toast('Timer reset — no shame. Back on the gum, keep going.');}
+  function slip(){lastUse=Date.now();tick();saveState();toast('Timer reset — no shame. Back on the gum, keep going.');}
 
   // ---------- gum tracker ----------
   let gum=4; let gumMax=12;
@@ -558,6 +561,7 @@
     gum++; renderGum();
     document.querySelectorAll('.gum-cell')[gum-1].classList.add('pop');
     toast(gum===gumMax ? 'Last piece for today 💪' : 'Piece '+gum+' logged · '+(gumMax-gum)+' left today');
+    saveState();
   }
 
   // ---------- craving sheet ----------
@@ -734,6 +738,7 @@
     const mx=document.getElementById('gumMaxN'); if(mx)mx.textContent=pieces;
     const tl=document.getElementById('timerLbl'); if(tl)tl.textContent='Time since your last '+prodSingular(prod);
     const pn=document.getElementById('programNote'); if(pn)pn.textContent='Program: '+strength+' gum, '+pieces+' pieces today, tapering to zero over ~12 weeks.';
+    saveState();
   }
   function finishQuiz(){ closeQuiz(); lastUse=Date.now()-((2*86400+14*3600)*1000); tick(); toast('Your plan is ready — welcome to Taper 🎉'); }
 
@@ -770,20 +775,54 @@
   function socialAuth(provider){ enterApp(); toast('Signed in with '+provider); }
   function guestAuth(){ enterApp(); toast('Exploring as guest'); }
   function enterApp(){
+    window.__authed=true; saveState();
     const l=document.getElementById('login');
     l.style.opacity='0';
     setTimeout(()=>{ l.classList.add('hidden'); l.style.opacity=''; }, 220);
   }
   function setUserName(name){
+    window.__name=name;
     const g=document.querySelector('#s-today .greet');
     if(g) g.innerHTML='Good morning, <b>'+name+'</b> — day <b>16</b> of your taper.';
   }
 
+  // ---------- persistence (on-device, no backend) ----------
+  const STORE_KEY='taper_state_v1';
+  function loadState(){ try{ return JSON.parse(localStorage.getItem(STORE_KEY)||'null'); }catch(e){ return null; } }
+  function saveState(){
+    try{
+      localStorage.setItem(STORE_KEY, JSON.stringify({
+        authed: !!window.__authed,
+        name: window.__name||null,
+        gum, gumMax, lastUse,
+        timerLbl: (document.getElementById('timerLbl')||{}).textContent||null,
+        programNote: (document.getElementById('programNote')||{}).textContent||null,
+        greet: (document.querySelector('#s-today .greet')||{}).innerHTML||null
+      }));
+    }catch(e){}
+  }
+  function restoreState(){
+    const s=loadState(); if(!s) return;
+    if(typeof s.gumMax==='number'){ gumMax=s.gumMax; const mx=document.getElementById('gumMaxN'); if(mx)mx.textContent=gumMax; }
+    if(typeof s.gum==='number') gum=s.gum;
+    if(typeof s.lastUse==='number') lastUse=s.lastUse;
+    if(s.timerLbl){ const tl=document.getElementById('timerLbl'); if(tl)tl.textContent=s.timerLbl; }
+    if(s.programNote){ const pn=document.getElementById('programNote'); if(pn)pn.textContent=s.programNote; }
+    if(s.greet){ const g=document.querySelector('#s-today .greet'); if(g)g.innerHTML=s.greet; }
+    window.__authed=!!s.authed; window.__name=s.name||null;
+    if(s.authed){
+      const l=document.getElementById('login'); if(l) l.classList.add('hidden');
+      const q=document.getElementById('quiz'); if(q) q.classList.add('hidden'); // returning users skip onboarding
+    }
+  }
+  function signOut(){ try{ localStorage.removeItem(STORE_KEY); }catch(e){} location.reload(); }
+
+  restoreState();
   startTimer(); renderGum(); drawPlan(); drawProg(); drawQuiz();
 </script>
 <script>
 (function(){
-  var MY_VERSION = "1787100300";
+  var MY_VERSION = "1787101961";
   async function check(){
     try{
       var r = await fetch("version.json?_="+Date.now(), {cache:"no-store"});
